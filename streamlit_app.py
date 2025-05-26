@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit.components.v1 import html
+import random
 
 # --- Custom CSS for Ultra Design ---
 st.markdown(
@@ -45,6 +45,13 @@ st.markdown(
 # --- Header ---
 st.markdown("# Bienvenue sur MoneyPlay! 💰🎮📺")
 
+# Initialize session state for game and points
+if 'target' not in st.session_state:
+    st.session_state.target = random.randint(1, 10)
+    st.session_state.attempts = 0
+if 'points' not in st.session_state:
+    st.session_state.points = 0
+
 # --- Main Tabs ---
 tabs = st.tabs(["Accueil", "Jeux", "Vidéos/Séries", "Formulaire & Affiliation"])
 
@@ -56,22 +63,30 @@ with tabs[0]:
 
         **Que voulez-vous faire aujourd'hui ?**
         
-        - 🎮 Jouer à des mini-jeux fun
-        - 📺 Regarder des vidéos ou séries sponsorisées
+        - 🎮 Jouer à des mini-jeux fun (10 points par victoire)
+        - 📺 Regarder des vidéos ou séries sponsorisées (5-20 points)
         - 📝 Remplir un formulaire et découvrir nos offres d'affiliation
         """
     )
 
 # --- Page: Jeux ---
 with tabs[1]:
-    st.subheader("Mini-Jeux 🎯")
-    st.markdown("Jouez à ce petit casse-briques intégrée:")
-    breakout_html = '''
-    <iframe src="https://editor.p5js.org/embed/lU7dxv2fH" width="100%" height="500"></iframe>
-    '''
-    html(breakout_html, height=500)
-    if st.button("Valider participation au jeu (10 points) 🚀"):
-        st.success("Bravo ! Vos points ont été comptabilisés.")
+    st.subheader("Jeu : Devinez le nombre 🎲")
+    st.markdown("**Objectif** : Devinez le nombre entre 1 et 10. Chaque victoire rapporte 10 points.")
+    guess = st.number_input("Votre proposition :", min_value=1, max_value=10, step=1)
+    if st.button("Valider ma proposition"):
+        st.session_state.attempts += 1
+        if guess == st.session_state.target:
+            st.success(f"Bravo ! Vous avez trouvé en {st.session_state.attempts} essai(s).")
+            st.session_state.points += 10
+            # Réinitialiser pour nouvelle partie
+            st.session_state.target = random.randint(1, 10)
+            st.session_state.attempts = 0
+        elif guess < st.session_state.target:
+            st.warning("C'est plus !")
+        else:
+            st.warning("C'est moins !")
+    st.markdown(f"**Points actuels** : {st.session_state.points}")
 
 # --- Page: Vidéos/Séries ---
 with tabs[2]:
@@ -79,16 +94,16 @@ with tabs[2]:
     st.markdown("Regardez ces vidéos et gagnez des points:")
     st.video("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
     if st.button("J'ai regardé la vidéo ! (5 points) 👀"):
-        st.info("Votre visionnage a été enregistré.")
+        st.session_state.points += 5
+        st.info(f"Votre visionnage a été enregistré. Points totaux : {st.session_state.points}")
 
     st.markdown("---")
     st.markdown("**Séries recommandées**")
-    series_html = '''
-    <iframe src="https://player.vimeo.com/video/76979871" width="100%" height="400"></iframe>
-    '''
-    html(series_html, height=400)
-    if st.button("Valider visionnage de la série (20 points) 🎉"):
-        st.success("Vous avez gagné des points !")
+    # Exemple sans iframe, juste lien et image
+    st.markdown("[Regarder la série sur Vimeo](https://vimeo.com/76979871)")
+    if st.button("J'ai visionné la série ! (20 points) 🎉"):
+        st.session_state.points += 20
+        st.success(f"Vous avez gagné des points ! Total : {st.session_state.points}")
 
 # --- Page: Formulaire & Affiliation ---
 with tabs[3]:
@@ -112,4 +127,4 @@ with tabs[3]:
 
 # --- Footer ---
 st.markdown("---")
-st.markdown("© 2025 MoneyPlay. Tous droits réservés.")
+st.markdown(f"© 2025 MoneyPlay. Tous droits réservés. Points totaux : {st.session_state.points}")
