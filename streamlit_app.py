@@ -1,7 +1,6 @@
 import streamlit as st
 import sqlite3
 import time
-import hashlib
 from datetime import datetime
 import random
 
@@ -25,67 +24,39 @@ c.execute('''CREATE TABLE IF NOT EXISTS activities
               timestamp DATETIME)''')
 
 # --------------------- Fonctions d'authentification ---------------------
-def make_hashes(password):
-    return hashlib.sha256(str.encode(password)).hexdigest()
-
-def check_hashes(password, hashed_text):
-    return make_hashes(password) == hashed_text
-
 def create_user(username, password, email):
-    hashed_password = make_hashes(password)
     c.execute('INSERT INTO users (username, password, email, registration_date) VALUES (?,?,?,?)',
-              (username, hashed_password, email, datetime.now()))
+              (username, password, email, datetime.now()))
     conn.commit()
 
 def login_user(username, password):
-    c.execute('SELECT * FROM users WHERE username = ?', (username,))
-    data = c.fetchone()
-    if data and check_hashes(password, data[2]):
-        return data
-    return None
+    c.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))
+    return c.fetchone()
 
 # --------------------- Système de points ---------------------
-def add_points(amount):
+def add_points(amount, activity_type=""):
     user = st.session_state.user
-    c.execute('UPDATE users SET points = points + ? WHERE id = ?',
-             (amount, user[0]))
+    c.execute('UPDATE users SET points = points + ? WHERE id = ?', (amount, user[0]))
     conn.commit()
+    # Enregistrer l'activité
+    if activity_type:
+        c.execute('INSERT INTO activities (user_id, activity_type, points_earned, timestamp) VALUES (?,?,?,?)',
+                  (user[0], activity_type, amount, datetime.now()))
+        conn.commit()
     st.session_state.user = list(user)
     st.session_state.user[4] += amount
     st.toast(f"+ {amount} points! 🎉", icon="✅")
 
 # --------------------- Interface utilisateur ---------------------
 def main_app():
-    # --------------------- CSS Personnalisé ---------------------
-    st.markdown("""
-    <style>
-        .main {
-            background-image: linear-gradient(to right, #1a1a1a, #2d2d2d);
-            color: #ffffff;
-        }
-        .stButton>button {
-            background-color: #4CAF50;
-            color: white;
-            border-radius: 25px;
-            padding: 10px 24px;
-            transition: all 0.3s;
-        }
-        .stButton>button:hover {
-            transform: scale(1.05);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    st.title("AD_Cash 🎮💰")
 
-    # --------------------- Barre latérale ---------------------
     with st.sidebar:
-        st.title("AD_Cash 🎮💰")
         menu = st.radio("Navigation", ["🏠 Accueil", "🎮 Jeux", "📺 Vidéos", "📝 Sondages", "💰 Mon Portefeuille"])
         if st.button("Déconnexion"):
             st.session_state.logged_in = False
             st.experimental_rerun()
 
-    # --------------------- Pages ---------------------
     if menu == "🏠 Accueil":
         st.header("Bienvenue sur AD_Cash!")
         st.write(f"Bonjour {st.session_state.user[1]}! 👋")
@@ -100,7 +71,7 @@ def main_app():
                 st.success(f"Résultat: {result}")
                 if result == 6:
                     st.balloons()
-                    add_points(50)
+                    add_points(50, "Dés 6")
             st.write("Chaque 6 rapporte 50 points !")
         with game_tab2:
             st.header("Tournois")
@@ -117,7 +88,7 @@ def main_app():
         if st.button("Regarder (30s) - 10 points"):
             with st.spinner("Vidéo en cours..."):
                 time.sleep(30)
-                add_points(10)
+                add_points(10, "Vidéo")
 
     elif menu == "📝 Sondages":
         with st.form("survey_form"):
@@ -125,7 +96,7 @@ def main_app():
             q1 = st.radio("Quelle est votre tranche d'âge?", ["18-25", "26-35", "36-45"])
             q2 = st.multiselect("Centres d'intérêt", ["Technologie", "Sport", "Cinéma"])
             if st.form_submit_button("Soumettre le questionnaire"):
-                add_points(25)
+                add_points(25, "Sondage")
                 st.success("Merci! 25 points ajoutés!")
 
     elif menu == "💰 Mon Portefeuille":
