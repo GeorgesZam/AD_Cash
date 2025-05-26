@@ -1,50 +1,37 @@
 import streamlit as st
-import sqlite3
 import time
-from datetime import datetime
 import random
+from datetime import datetime
 
-# --------------------- Configuration initiale ---------------------
-conn = sqlite3.connect('adcash.db', check_same_thread=False)
-c = conn.cursor()
-
-# Création des tables SQLite
-c.execute('''CREATE TABLE IF NOT EXISTS users
-             (id INTEGER PRIMARY KEY AUTOINCREMENT,
-              username TEXT UNIQUE, 
-              password TEXT,
-              email TEXT,
-              points INTEGER DEFAULT 0,
-              registration_date DATETIME)''')
-
-c.execute('''CREATE TABLE IF NOT EXISTS activities
-             (user_id INTEGER,
-              activity_type TEXT,
-              points_earned INTEGER,
-              timestamp DATETIME)''')
+# --------------------- Stockage en mémoire ---------------------
+if 'users' not in st.session_state:
+    st.session_state.users = {}  # username -> {password, email, points, activities, registration_date}
+if 'current_user' not in st.session_state:
+    st.session_state.current_user = None
 
 # --------------------- Fonctions d'authentification ---------------------
 def create_user(username, password, email):
-    c.execute('INSERT INTO users (username, password, email, registration_date) VALUES (?,?,?,?)',
-              (username, password, email, datetime.now()))
-    conn.commit()
+    st.session_state.users[username] = {
+        'password': password,
+        'email': email,
+        'points': 0,
+        'activities': [],
+        'registration_date': datetime.now()
+    }
 
 def login_user(username, password):
-    c.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))
-    return c.fetchone()
+    user = st.session_state.users.get(username)
+    if user and user['password'] == password:
+        return username
+    return None
 
 # --------------------- Système de points ---------------------
 def add_points(amount, activity_type=""):
-    user = st.session_state.user
-    c.execute('UPDATE users SET points = points + ? WHERE id = ?', (amount, user[0]))
-    conn.commit()
-    # Enregistrer l'activité
+    user_key = st.session_state.current_user
+    user = st.session_state.users[user_key]
+    user['points'] += amount
     if activity_type:
-        c.execute('INSERT INTO activities (user_id, activity_type, points_earned, timestamp) VALUES (?,?,?,?)',
-                  (user[0], activity_type, amount, datetime.now()))
-        conn.commit()
-    st.session_state.user = list(user)
-    st.session_state.user[4] += amount
+        user['activities'].append((activity_type, amount, datetime.now()))
     st.toast(f"+ {amount} points! 🎉", icon="✅")
 
 # --------------------- Interface utilisateur ---------------------
@@ -54,13 +41,14 @@ def main_app():
     with st.sidebar:
         menu = st.radio("Navigation", ["🏠 Accueil", "🎮 Jeux", "📺 Vidéos", "📝 Sondages", "💰 Mon Portefeuille"])
         if st.button("Déconnexion"):
-            st.session_state.logged_in = False
+            st.session_state.current_user = None
             st.experimental_rerun()
 
+    user = st.session_state.users[st.session_state.current_user]
+
     if menu == "🏠 Accueil":
-        st.header("Bienvenue sur AD_Cash!")
-        st.write(f"Bonjour {st.session_state.user[1]}! 👋")
-        st.metric("Points accumulés", f"{st.session_state.user[4]} 🪙")
+        st.header(f"Bienvenue {st.session_state.current_user}!")
+        st.metric("Points accumulés", f"{user['points']} 🪙")
 
     elif menu == "🎮 Jeux":
         game_tab1, game_tab2, game_tab3 = st.tabs(["🎲 Jeux Instantanés", "🏆 Tournois", "📜 Historique"])
@@ -78,10 +66,8 @@ def main_app():
             st.write("Section Tournois en cours de développement...")
         with game_tab3:
             st.header("Historique des Activités")
-            c.execute('SELECT activity_type, points_earned, timestamp FROM activities WHERE user_id = ?', (st.session_state.user[0],))
-            rows = c.fetchall()
-            for act, pts, ts in rows:
-                st.write(f"{ts}: {act} (+{pts} points)")
+            for act, pts, ts in user['activities']:
+                st.write(f"{ts.strftime('%Y-%m-%d %H:%M:%S')}: {act} (+{pts} points)")
 
     elif menu == "📺 Vidéos":
         st.header("Regardez des vidéos sponsorisées")
@@ -101,15 +87,15 @@ def main_app():
 
     elif menu == "💰 Mon Portefeuille":
         st.header("Gestion des gains")
-        st.write(f"Solde actuel: {st.session_state.user[4]} points")
+        st.write(f"Solde actuel: {user['points']} points")
         with st.expander("Convertir en argent"):
             convert_amount = st.number_input("Points à convertir", min_value=100)
             if st.button("Confirmer conversion"):
-                if st.session_state.user[4] >= convert_amount:
-                    new_balance = st.session_state.user[4] - convert_amount
-                    c.execute('UPDATE users SET points = ? WHERE id = ?', (new_balance, st.session_state.user[0]))
-                    conn.commit()
+                if user['points'] >= convert_amount:
+                    user['points'] -= convert_amount
                     st.success(f"Conversion réussie! Montant envoyé: {convert_amount*0.01}€")
+                else:
+                    st.error("Pas assez de points.")
 
 # --------------------- Page de login ---------------------
 def login_page():
@@ -122,8 +108,7 @@ def login_page():
             if st.form_submit_button("Se connecter"):
                 user = login_user(username, password)
                 if user:
-                    st.session_state.logged_in = True
-                    st.session_state.user = user
+                    st.session_state.current_user = user
                     st.experimental_rerun()
                 else:
                     st.error("Identifiants incorrects")
@@ -137,11 +122,7 @@ def login_page():
                 st.success("Compte créé! Connectez-vous")
 
 # --------------------- Execution principale ---------------------
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if st.session_state.logged_in:
+if st.session_state.current_user:
     main_app()
 else:
     login_page()
-
-conn.close()
