@@ -1,6 +1,6 @@
 streamlit 
 sqlite3
-streamlit_lottie 
+streamlit-lottie 
 requests
 hashlib
 datetime 
