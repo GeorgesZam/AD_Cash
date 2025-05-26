@@ -1,6 +1,5 @@
 streamlit 
 sqlite3
-time
 streamlit_lottie 
 requests
 hashlib
