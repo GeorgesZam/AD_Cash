@@ -42,7 +42,7 @@ def main_app():
         menu = st.radio("Navigation", ["🏠 Accueil", "🎮 Jeux", "📺 Vidéos", "📝 Sondages", "💰 Mon Portefeuille"])
         if st.button("Déconnexion"):
             st.session_state.current_user = None
-            st.experimental_rerun()
+            st.rerun()
 
     user = st.session_state.users[st.session_state.current_user]
 
